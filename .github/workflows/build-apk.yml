@@ -39,6 +39,22 @@ jobs:
           rm -f android/app/build.gradle
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle.kts
           grep -n "minSdk\|compileSdk" android/app/build.gradle.kts
+                    # نوحّد إعداد Java على 17 لكل المكتبات (يحل مشكلة receive_sharing_intent)
+          cat >> android/build.gradle.kts <<'EOF'
+
+          subprojects {
+              afterEvaluate {
+                  if (project.extensions.findByName("android") != null) {
+                      project.extensions.configure<com.android.build.gradle.BaseExtension>("android") {
+                          compileOptions {
+                              sourceCompatibility = JavaVersion.VERSION_17
+                              targetCompatibility = JavaVersion.VERSION_17
+                          }
+                      }
+                  }
+              }
+          }
+          EOF
 
       - name: Install packages
         run: flutter pub get
