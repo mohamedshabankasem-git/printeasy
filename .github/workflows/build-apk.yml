@@ -34,9 +34,10 @@ jobs:
           cp /tmp/bak/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           rm -rf test
 
-          # minSdk = 21 (يدعم صيغتي Groovy و Kotlin)
-          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/; s/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' android/app/build.gradle* || true
-          grep -n "minSdk" android/app/build.gradle* || true
+          # نحذف build.gradle القديم ونستخدم الحديث (.kts) الذي أنشأه flutter
+          rm -f android/app/build.gradle
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle.kts
+          grep -n "minSdk\|compileSdk" android/app/build.gradle.kts
 
       - name: Install packages
         run: flutter pub get
