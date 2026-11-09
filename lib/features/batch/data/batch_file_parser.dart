@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
-import 'package:flutter/painting.dart' show TextSpan;
 
 class BatchTable {
   const BatchTable(this.headers, this.rows);
@@ -56,10 +55,19 @@ class BatchFileParser {
     if (v == null) return '';
     try {
       final dynamic val = (v as dynamic).value;
-      if (val is TextSpan) return val.toPlainText();
+      if (val == null) return '';
+      if (val is String) return val;
       if (val is double && val == val.roundToDouble()) return val.toStringAsFixed(0);
-      if (val != null) return val.toString();
-    } catch (_) {}
-    return v.toString();
+      if (val is num || val is bool) return val.toString();
+      return _spanText(val); // TextSpan الخاص بمكتبة excel
+    } catch (_) {
+      return v.toString();
+    }
+  }
+
+  static String _spanText(dynamic span) {
+    final text = (span.text as String?) ?? '';
+    final children = span.children as List?;
+    return text + (children?.map(_spanText).join() ?? '');
   }
 }
