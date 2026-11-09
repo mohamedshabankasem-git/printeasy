@@ -1,0 +1,50 @@
+name: printeasy
+description: "طباعة سريعة - تطبيق الطابعات الحرارية (PrintEasy)"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # إدارة الحالة والتنقل
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.0
+
+  # التخزين
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  shared_preferences: ^2.2.3
+
+  # الاتصال بالطابعة
+  flutter_blue_plus: 1.34.5        # Bluetooth LE (إصدار ثابت لتجنب أخطاء Gradle)
+  print_bluetooth_thermal: ^1.1.4  # Bluetooth Classic (flutter_blue_plus لا يدعم Classic)
+  usb_serial: ^0.5.2
+  permission_handler: ^11.3.1
+
+  # الملفات
+  file_picker: ^8.0.6
+  csv: ^6.0.0
+  excel: ^4.0.6
+
+  # الرسوم
+  qr_flutter: ^4.1.0
+  barcode: ^2.2.8
+
+  # المشاركة
+  receive_sharing_intent: ^1.8.0
+
+  intl: any   # لتجنب تعارض الإصدارات
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
