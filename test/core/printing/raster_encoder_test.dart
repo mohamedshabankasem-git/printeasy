@@ -19,8 +19,6 @@ void main() {
 
     try {
       final bytes = await RasterEncoder.encode(image);
-
-      // One GS v 0 header followed by all 25 rows (one byte per row).
       expect(bytes.length, 8 + 25);
       expect(bytes.sublist(0, 8), [0x1D, 0x76, 0x30, 0x00, 1, 0, 25, 0]);
       expect(bytes.sublist(8), List<int>.filled(25, 0xFF));
@@ -33,17 +31,15 @@ void main() {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     canvas.drawRect(
-      const ui.Rect.fromLTWH(0, 0, 1, 1),
+      const ui.Rect.fromLTWH(0, 0, 1, 65536),
       ui.Paint()..color = const ui.Color(0xFFFFFFFF),
     );
     final picture = recorder.endRecording();
-    final image = await picture.toImage(1, 1);
+    final image = await picture.toImage(1, 65536);
     picture.dispose();
 
     try {
-      // A lightweight fake image of this height is not possible here;
-      // the regular encoder path is covered by the complete-page test above.
-      expect(image.height, 1);
+      await expectLater(RasterEncoder.encode(image), throwsArgumentError);
     } finally {
       image.dispose();
     }
