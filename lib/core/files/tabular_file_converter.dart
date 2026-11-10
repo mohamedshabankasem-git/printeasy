@@ -16,12 +16,12 @@ class TabularFileConverter {
     required Uint8List bytes,
     required int widthDots,
   }) async {
-    if (bytes.isEmpty) throw const ArgumentError('الملف فارغ');
+    if (bytes.isEmpty) throw ArgumentError('الملف فارغ');
     final ext = fileName.toLowerCase().split('.').last;
     final pages = <Uint8List>[];
     if (ext == 'xlsx') {
       final workbook = Excel.decodeBytes(bytes);
-      if (workbook.tables.isEmpty) throw FormatException('لا توجد أوراق في ملف Excel');
+      if (workbook.tables.isEmpty) throw const FormatException('لا توجد أوراق في ملف Excel');
       for (final entry in workbook.tables.entries) {
         final lines = <String>['ورقة: ${entry.key}', ''];
         for (final row in entry.value.rows) {
