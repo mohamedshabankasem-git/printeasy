@@ -23,7 +23,7 @@ class OfficeOpenXmlConverter {
     if (ext == 'docx') {
       final documents = archive.files.where((f) => f.isFile && f.name == 'word/document.xml').toList();
       if (documents.isEmpty) throw FormatException('ملف Word لا يحتوي على المستند الرئيسي');
-      final xml = utf8.decode(documents.first.readBytes(), allowMalformed: true);
+      final xml = utf8.decode(documents.first.content as List<int>, allowMalformed: true);
       for (final paragraph in RegExp(r'<w:p(?:\s[^>]*)?>([\s\S]*?)</w:p>').allMatches(xml)) {
         final text = _extractRuns(paragraph.group(1) ?? '', 'w:t');
         if (text.trim().isNotEmpty) lines.add(text);
@@ -39,7 +39,7 @@ class OfficeOpenXmlConverter {
         ..sort((a, b) => _slideNumber(a.name).compareTo(_slideNumber(b.name)));
       if (slides.isEmpty) throw FormatException('لم يتم العثور على شرائح داخل PowerPoint');
       for (var i = 0; i < slides.length; i++) {
-        final xml = utf8.decode(slides[i].readBytes(), allowMalformed: true);
+        final xml = utf8.decode(slides[i].content as List<int>, allowMalformed: true);
         lines.add('الشريحة ${i + 1}');
         for (final paragraph in RegExp(r'<a:p(?:\s[^>]*)?>([\s\S]*?)</a:p>').allMatches(xml)) {
           final text = _extractRuns(paragraph.group(1) ?? '', 'a:t');
