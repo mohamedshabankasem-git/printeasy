@@ -17,7 +17,7 @@ void main() {
 
   test('rejects invalid paper width', () async {
     expect(
-      () => TextPageRenderer.render(const ['test'], widthDots: 0),
+      TextPageRenderer.render(const ['test'], widthDots: 0),
       throwsArgumentError,
     );
   });
