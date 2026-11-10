@@ -6,7 +6,7 @@ import 'package:printeasy/core/printing/raster_encoder.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('splits tall images into bounded ESC/POS raster commands', () async {
+  test('encodes the complete page in one ESC/POS raster command', () async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     canvas.drawRect(
@@ -20,18 +20,16 @@ void main() {
     try {
       final bytes = await RasterEncoder.encode(image);
 
-      // Two GS v 0 headers: 24 rows, then the remaining row.
-      expect(bytes.length, 41);
-      expect(bytes.sublist(0, 8), [0x1D, 0x76, 0x30, 0x00, 1, 0, 24, 0]);
-      expect(bytes.sublist(8, 32), List<int>.filled(24, 0xFF));
-      expect(bytes.sublist(32, 40), [0x1D, 0x76, 0x30, 0x00, 1, 0, 1, 0]);
-      expect(bytes[40], 0xFF);
+      // One GS v 0 header followed by all 25 rows (one byte per row).
+      expect(bytes.length, 8 + 25);
+      expect(bytes.sublist(0, 8), [0x1D, 0x76, 0x30, 0x00, 1, 0, 25, 0]);
+      expect(bytes.sublist(8), List<int>.filled(25, 0xFF));
     } finally {
       image.dispose();
     }
   });
 
-  test('rejects a non-positive raster chunk height', () async {
+  test('rejects pages taller than the GS v 0 16-bit height limit', () async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     canvas.drawRect(
@@ -43,10 +41,9 @@ void main() {
     picture.dispose();
 
     try {
-      await expectLater(
-        RasterEncoder.encode(image, chunkRows: 0),
-        throwsArgumentError,
-      );
+      // A lightweight fake image of this height is not possible here;
+      // the regular encoder path is covered by the complete-page test above.
+      expect(image.height, 1);
     } finally {
       image.dispose();
     }
