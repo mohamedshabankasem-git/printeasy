@@ -14,7 +14,7 @@ class AppTheme {
       appBarTheme: AppBarTheme(centerTitle: true, backgroundColor: scheme.surface),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: scheme.surfaceContainerHighest.withOpacity(0.5),
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(
