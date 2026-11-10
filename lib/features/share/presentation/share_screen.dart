@@ -35,7 +35,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     Future.microtask(() async {
       final auto = ref.read(settingsProvider).shareAutoPrint;
       final connected = ref.read(connectionControllerProvider).isConnected;
-      if (auto && connected) await _print();
+      if (auto && connected && _items.isNotEmpty) await _print();
     });
   }
 
