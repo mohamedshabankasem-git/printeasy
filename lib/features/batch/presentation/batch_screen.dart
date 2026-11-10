@@ -169,7 +169,8 @@ class _BatchScreenState extends ConsumerState<BatchScreen> {
           if (_headers.isNotEmpty) ...[
             const SizedBox(height: 16),
             DropdownButtonFormField<TemplateModel>(
-              value: templates.any((t) => t.id == _template?.id) ? _template : null,
+              key: ValueKey(_template?.id),
+              initialValue: templates.any((t) => t.id == _template?.id) ? _template : null,
               decoration: const InputDecoration(labelText: 'القالب'),
               items: templates.map((t) => DropdownMenuItem(value: t, child: Text(t.name))).toList(),
               onChanged: _running
@@ -188,7 +189,8 @@ class _BatchScreenState extends ConsumerState<BatchScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: DropdownButtonFormField<String?>(
-                    value: _mapping[v],
+                    key: ValueKey('$v-${_mapping[v]}'),
+                    initialValue: _mapping[v],
                     decoration: InputDecoration(labelText: '{$v}', isDense: true),
                     items: [
                       const DropdownMenuItem<String?>(value: null, child: Text('— بدون —')),
