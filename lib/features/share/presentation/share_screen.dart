@@ -1,8 +1,12 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/printing/print_block.dart';
 import '../../../core/files/pdf_page_converter.dart';
+import '../../../core/files/tabular_file_converter.dart';
 import '../../connection/presentation/connection_controller.dart';
 import '../../printing/data/print_job_runner.dart';
 import '../../settings/presentation/settings_providers.dart';
@@ -21,14 +25,45 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
   bool _printing = false;
   String? _result;
   bool _ok = false;
+  late final List<SharedItem> _items;
 
   @override
   void initState() {
     super.initState();
+    _items = List<SharedItem>.of(widget.payload.items);
     Future.microtask(() async {
       final auto = ref.read(settingsProvider).shareAutoPrint;
       final connected = ref.read(connectionControllerProvider).isConnected;
       if (auto && connected) await _print();
+    });
+  }
+
+  Future<void> _addFiles() async {
+    if (_printing) return;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowMultiple: true,
+      withData: true,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'csv', 'xlsx', 'txt', 'html', 'htm', 'doc', 'docx', 'ppt', 'pptx'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    final added = <SharedItem>[];
+    for (final file in result.files) {
+      try {
+        final bytes = file.bytes ?? (file.path == null ? null : await File(file.path!).readAsBytes());
+        if (bytes == null || bytes.isEmpty) continue;
+        final ext = file.extension?.toLowerCase() ?? '';
+        final kind = const ['jpg', 'jpeg', 'png', 'webp'].contains(ext) ? 'image' : 'file';
+        added.add(SharedItem(name: file.name, kind: kind, bytes: bytes));
+      } catch (_) {
+        added.add(SharedItem(name: file.name, kind: 'other'));
+      }
+    }
+    if (!mounted || added.isEmpty) return;
+    setState(() {
+      _items.addAll(added);
+      _result = 'تمت إضافة ${added.length} ملف';
+      _ok = false;
     });
   }
 
@@ -48,7 +83,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     final unsupported = <String>[];
     final widthDots = ref.read(settingsProvider).toPrintSettings().widthDots;
     try {
-      for (final item in widget.payload.items) {
+      for (final item in _items) {
         if (item.isImage && item.bytes != null) {
           blocks.add(ImageBlock(item.bytes!));
           blocks.add(const FeedBlock(12));
@@ -64,6 +99,17 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
             item.bytes!,
             widthDots: widthDots,
           )) {
+            blocks.add(ImageBlock(page));
+            blocks.add(const FeedBlock(12));
+          }
+        } else if (item.kind == 'file' && item.bytes != null &&
+            const ['csv', 'xlsx', 'txt', 'html', 'htm'].contains(item.name.toLowerCase().split('.').last)) {
+          final pages = await TabularFileConverter.convert(
+            fileName: item.name,
+            bytes: item.bytes!,
+            widthDots: widthDots,
+          );
+          for (final page in pages) {
             blocks.add(ImageBlock(page));
             blocks.add(const FeedBlock(12));
           }
@@ -87,7 +133,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     } else {
       r = await ref.read(printJobRunnerProvider).printBlocks(
             blocks,
-            title: 'مشاركة: ${widget.payload.items.length} عنصر',
+            title: 'مشاركة: ${_items.length} عنصر',
             stored: '',
           );
     }
@@ -122,18 +168,20 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
         subtitle: Text(_short(item.text!)),
       );
     }
-    final isPdf = item.name.toLowerCase().endsWith('.pdf');
+    final ext = item.name.toLowerCase().split('.').last;
+    final isPdf = ext == 'pdf';
+    final isTabular = const ['csv', 'xlsx', 'txt', 'html', 'htm'].contains(ext);
     return ListTile(
       leading: const Icon(Icons.insert_drive_file_outlined),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(isPdf ? 'ملف PDF — سيتم تحويل كل صفحة لصورة' : 'صيغة الملف لم تُجهّز للتحويل بعد'),
+      subtitle: Text(isPdf ? 'ملف PDF — سيتم تحويل كل صفحة لصورة' : isTabular ? 'سيتم تحويل المحتوى إلى صفحات صور' : 'صيغة الملف لم تُجهّز للتحويل بعد'),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionControllerProvider);
-    final items = widget.payload.items;
+    final items = _items;
 
     return Scaffold(
       appBar: AppBar(title: const Text('طباعة المحتوى المشترك')),
@@ -142,7 +190,13 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('العناصر المستلمة: ${items.length}', style: Theme.of(context).textTheme.titleMedium),
+            Text('الملفات المختارة: ${items.length}', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _printing ? null : _addFiles,
+              icon: const Icon(Icons.add_to_photos_outlined),
+              label: const Text('إضافة ملفات متعددة'),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: Card(
