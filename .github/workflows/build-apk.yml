@@ -1,5 +1,8 @@
 name: Build APK
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -33,7 +36,6 @@ jobs:
           cp /tmp/bak/pubspec.yaml pubspec.yaml
           rm -rf lib && cp -r /tmp/bak/lib lib
           cp /tmp/bak/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
-          rm -rf test
 
           # نحذف build.gradle القديم ونستخدم الحديث (.kts) الذي أنشأه flutter
           rm -f android/app/build.gradle
@@ -43,6 +45,12 @@ jobs:
 
       - name: Install packages
         run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Unit tests
+        run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release
