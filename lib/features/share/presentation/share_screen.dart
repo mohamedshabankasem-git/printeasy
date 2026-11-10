@@ -141,7 +141,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
 
     final PrintResult r;
     if (blocks.isEmpty) {
-      r = PrintResult.fail('لا توجد ملفات مدعومة للطباعة حالياً');
+      r = const PrintResult.fail('لا توجد ملفات مدعومة للطباعة حالياً');
     } else {
       r = await ref.read(printJobRunnerProvider).printBlocks(
             blocks,
