@@ -44,7 +44,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowMultiple: true,
-      withData: true,
+      withData: false,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'csv', 'xlsx', 'txt', 'html', 'htm', 'docx', 'pptx'],
     );
     if (result == null || result.files.isEmpty) return;
