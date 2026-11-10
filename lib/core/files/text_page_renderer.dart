@@ -13,6 +13,14 @@ class TextPageRenderer {
     double horizontalPadding = 8,
   }) async {
     if (widthDots < 64) throw ArgumentError.value(widthDots, 'widthDots');
+    if (maxHeight < 32) throw ArgumentError.value(maxHeight, 'maxHeight');
+    if (!fontSize.isFinite || fontSize <= 0) {
+      throw ArgumentError.value(fontSize, 'fontSize');
+    }
+    if (!horizontalPadding.isFinite || horizontalPadding < 0 ||
+        horizontalPadding * 2 >= widthDots) {
+      throw ArgumentError.value(horizontalPadding, 'horizontalPadding');
+    }
     final contentWidth = widthDots - horizontalPadding * 2;
     // كل سطر يلف تلقائياً عند عرض الورق، وتُحفظ فواصل الأسطر.
     final chunks = <String>[];
