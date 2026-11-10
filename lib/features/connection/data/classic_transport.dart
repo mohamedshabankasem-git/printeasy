@@ -1,14 +1,17 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+
 import '../../../core/printing/printer_transport.dart';
 
-/// اتصال Bluetooth Classic (SPP) — الطابعة يجب أن تكون مقترنة من إعدادات الجهاز
+/// Bluetooth Classic (SPP). The printer must be paired in Android settings.
 class ClassicPrinterTransport implements PrinterTransport {
   ClassicPrinterTransport(this.mac);
 
   final String mac;
   bool _connected = false;
+  Future<void> _writeQueue = Future<void>.value();
 
   @override
   bool get isConnected => _connected;
@@ -16,22 +19,43 @@ class ClassicPrinterTransport implements PrinterTransport {
   @override
   Future<void> connect() async {
     final ok = await PrintBluetoothThermal.connect(macPrinterAddress: mac);
-    if (!ok) throw Exception('فشل الاتصال بالطابعة (تأكد أنها مقترنة ومفعّلة)');
+    if (!ok) {
+      throw Exception('فشل الاتصال بالطابعة (تأكد أنها مقترنة ومفعّلة)');
+    }
     _connected = true;
   }
 
   @override
-  Future<void> write(Uint8List data) async {
-    // حزم أصغر من السابقة لتقليل الضغط على مخزن الطابعة أثناء الصور الطويلة.
-    const chunk = 512;
-    for (var i = 0; i < data.length; i += chunk) {
-      final end = math.min(i + chunk, data.length);
-      final ok = await PrintBluetoothThermal.writeBytes(data.sublist(i, end).toList());
+  Future<void> write(Uint8List data) {
+    final next = _writeQueue.then((_) => _writeChunks(data));
+    _writeQueue = next.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
+    );
+    return next;
+  }
+
+  Future<void> _writeChunks(Uint8List data) async {
+    if (!_connected) {
+      throw Exception('الطابعة غير متصلة عبر Bluetooth Classic');
+    }
+
+    // Larger SPP writes reduce per-call overhead. Each write is awaited,
+    // so chunks remain ordered and the printer's socket applies backpressure.
+    const chunkSize = 1024;
+    for (var offset = 0; offset < data.length; offset += chunkSize) {
+      if (!_connected) {
+        throw Exception('انقطع الاتصال أثناء الإرسال');
+      }
+
+      final end = math.min(offset + chunkSize, data.length);
+      final ok = await PrintBluetoothThermal.writeBytes(
+        data.sublist(offset, end).toList(),
+      );
       if (!ok) {
         _connected = false;
         throw Exception('انقطع الاتصال أثناء الإرسال');
       }
-      await Future.delayed(const Duration(milliseconds: 10));
     }
   }
 
