@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/printing/print_block.dart';
 import '../../../core/files/pdf_page_converter.dart';
 import '../../../core/files/tabular_file_converter.dart';
+import '../../../core/files/office_open_xml_converter.dart';
 import '../../connection/presentation/connection_controller.dart';
 import '../../printing/data/print_job_runner.dart';
 import '../../settings/presentation/settings_providers.dart';
@@ -44,7 +45,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
       type: FileType.custom,
       allowMultiple: true,
       withData: true,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'csv', 'xlsx', 'txt', 'html', 'htm', 'doc', 'docx', 'ppt', 'pptx'],
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'csv', 'xlsx', 'txt', 'html', 'htm', 'docx', 'pptx'],
     );
     if (result == null || result.files.isEmpty) return;
     final added = <SharedItem>[];
@@ -113,6 +114,17 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
             blocks.add(ImageBlock(page));
             blocks.add(const FeedBlock(12));
           }
+        } else if (item.kind == 'file' && item.bytes != null &&
+            const ['docx', 'pptx'].contains(item.name.toLowerCase().split('.').last)) {
+          final pages = await OfficeOpenXmlConverter.convert(
+            fileName: item.name,
+            bytes: item.bytes!,
+            widthDots: widthDots,
+          );
+          for (final page in pages) {
+            blocks.add(ImageBlock(page));
+            blocks.add(const FeedBlock(12));
+          }
         } else {
           unsupported.add(item.name);
         }
@@ -171,10 +183,11 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     final ext = item.name.toLowerCase().split('.').last;
     final isPdf = ext == 'pdf';
     final isTabular = const ['csv', 'xlsx', 'txt', 'html', 'htm'].contains(ext);
+    final isOfficeXml = const ['docx', 'pptx'].contains(ext);
     return ListTile(
       leading: const Icon(Icons.insert_drive_file_outlined),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(isPdf ? 'ملف PDF — سيتم تحويل كل صفحة لصورة' : isTabular ? 'سيتم تحويل المحتوى إلى صفحات صور' : 'صيغة الملف لم تُجهّز للتحويل بعد'),
+      subtitle: Text(isPdf ? 'ملف PDF — سيتم تحويل كل صفحة لصورة' : isTabular ? 'سيتم تحويل المحتوى إلى صفحات صور' : isOfficeXml ? 'سيتم استخراج النص وترتيبه للطباعة' : 'صيغة الملف لم تُجهّز للتحويل بعد'),
     );
   }
 
