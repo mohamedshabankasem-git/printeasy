@@ -39,8 +39,24 @@ class PrintService {
   final PrinterTransport transport;
   final PrintSettings settings;
 
+  // يمنع تداخل أوامر وظيفتي طباعة عند استدعاء الخدمة بالتزامن.
+  Future<void> _queue = Future<void>.value();
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final next = _queue.then((_) => action());
+    // لا نترك فشل مهمة سابقة يمنع تنفيذ المهام التالية.
+    _queue = next.then<void>(
+      (_) {},
+      onError: (Object error, StackTrace stack) {},
+    );
+    return next;
+  }
+
   /// طباعة قائمة عناصر (تدعم CutBlock لتقسيم الإيصال لعدة قطع)
-  Future<void> printBlocks(List<PrintBlock> blocks, {bool Function()? isCancelled}) async {
+  Future<void> printBlocks(List<PrintBlock> blocks, {bool Function()? isCancelled}) =>
+      _enqueue(() => _printBlocks(blocks, isCancelled: isCancelled));
+
+  Future<void> _printBlocks(List<PrintBlock> blocks, {bool Function()? isCancelled}) async {
     final segments = <List<PrintBlock>>[[]];
     final cutAfter = <bool>[];
     for (final b in blocks) {
@@ -64,63 +80,71 @@ class PrintService {
       if (isCancelled?.call() ?? false) throw PrintCancelled();
       final seg = segments[i];
       if (seg.isEmpty) {
-        if (cutAfter[i]) await cutPaper();
+        if (cutAfter[i]) await _cutPaper();
         continue;
       }
       final image = await renderer.render(seg);
       try {
-        await printImage(image);
+        await _printImage(image);
       } finally {
         image.dispose();
       }
-      // تغذية ثابتة بعد الإيصال ليخرج كاملاً قبل القص
-      await feedMm(settings.tailFeedMm);
+      await _feedMm(settings.tailFeedMm);
       final isLast = i == segments.length - 1;
-      if (cutAfter[i] || (isLast && settings.autoCut)) await cutPaper();
+      if (cutAfter[i] || (isLast && settings.autoCut)) await _cutPaper();
     }
   }
 
   /// طباعة صورة كاملة كإيصال: تهيئة ← صورة ← تغذية ← قص (حسب الإعدادات)
-  Future<void> printImageJob(ui.Image image) async {
-    await transport.write(EscPos().initialize().build());
-    await printImage(image);
-    await feedMm(settings.tailFeedMm);
-    if (settings.autoCut) await cutPaper();
-  }
+  Future<void> printImageJob(ui.Image image) => _enqueue(() async {
+        await transport.write(EscPos().initialize().build());
+        await _printImage(image);
+        await _feedMm(settings.tailFeedMm);
+        if (settings.autoCut) await _cutPaper();
+      });
 
-  /// طباعة صورة جاهزة
-  Future<void> printImage(ui.Image image) async {
+  /// طباعة صورة جاهزة كعملية مستقلة داخل طابور الطباعة.
+  Future<void> printImage(ui.Image image) => _enqueue(() => _printImage(image));
+
+  Future<void> _printImage(ui.Image image) async {
     final bytes = await RasterEncoder.encode(image, threshold: settings.threshold);
     await transport.write(bytes);
   }
 
   /// نص ASCII فقط عبر خطوط الطابعة (للعربية استخدم printBlocks)
   Future<void> printRawText(String text,
-      {PrintAlign align = PrintAlign.left, bool bold = false, int size = 1}) async {
-    final cmd = EscPos().align(align).bold(bold).textSize(size, size).text(text);
-    cmd.bold(false).textSize(1, 1);
-    await transport.write(cmd.build());
-  }
+      {PrintAlign align = PrintAlign.left, bool bold = false, int size = 1}) =>
+      _enqueue(() async {
+        final cmd = EscPos().align(align).bold(bold).textSize(size, size).text(text);
+        cmd.bold(false).textSize(1, 1);
+        await transport.write(cmd.build());
+      });
 
   /// QR أصلي من الطابعة
-  Future<void> printQrNative(String data, {int moduleSize = 6}) async {
-    await transport.write(EscPos().align(PrintAlign.center).qrNative(data, moduleSize: moduleSize).newLine().build());
-  }
+  Future<void> printQrNative(String data, {int moduleSize = 6}) =>
+      _enqueue(() => transport.write(
+          EscPos().align(PrintAlign.center).qrNative(data, moduleSize: moduleSize).newLine().build()));
 
   /// باركود Code128 أصلي من الطابعة
-  Future<void> printBarcodeNative(String data) async {
-    await transport.write(EscPos().align(PrintAlign.center).barcodeNative(data).newLine().build());
-  }
+  Future<void> printBarcodeNative(String data) =>
+      _enqueue(() => transport.write(
+          EscPos().align(PrintAlign.center).barcodeNative(data).newLine().build()));
 
-  Future<void> feedMm(int mm) async {
+  Future<void> feedMm(int mm) => _enqueue(() => _feedMm(mm));
+
+  Future<void> _feedMm(int mm) async {
     if (mm <= 0) return;
     await transport.write(EscPos().feedDots(mm * 8).build());
   }
 
-  Future<void> feedLines(int n) => transport.write(EscPos().feedLines(n).build());
+  Future<void> feedLines(int n) =>
+      _enqueue(() => transport.write(EscPos().feedLines(n).build()));
 
   Future<void> cutPaper({bool partial = true}) =>
+      _enqueue(() => _cutPaper(partial: partial));
+
+  Future<void> _cutPaper({bool partial = true}) =>
       transport.write(EscPos().cut(partial: partial).build());
 
-  Future<void> sendRaw(Uint8List bytes) => transport.write(bytes);
+  Future<void> sendRaw(Uint8List bytes) => _enqueue(() => transport.write(bytes));
 }
