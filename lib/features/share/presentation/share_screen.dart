@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/printing/print_block.dart';
+import '../../../core/files/pdf_page_converter.dart';
 import '../../connection/presentation/connection_controller.dart';
 import '../../printing/data/print_job_runner.dart';
 import '../../settings/presentation/settings_providers.dart';
@@ -45,18 +46,39 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
 
     final blocks = <PrintBlock>[];
     final unsupported = <String>[];
-    for (final item in widget.payload.items) {
-      if (item.isImage && item.bytes != null) {
-        blocks.add(ImageBlock(item.bytes!));
-        blocks.add(const FeedBlock(12));
-      } else if (item.kind == 'text' && item.text != null) {
-        for (final line in item.text!.split('\n')) {
-          blocks.add(TextBlock(line));
+    final widthDots = ref.read(settingsProvider).toPrintSettings().widthDots;
+    try {
+      for (final item in widget.payload.items) {
+        if (item.isImage && item.bytes != null) {
+          blocks.add(ImageBlock(item.bytes!));
+          blocks.add(const FeedBlock(12));
+        } else if (item.kind == 'text' && item.text != null) {
+          for (final line in item.text!.split('\n')) {
+            blocks.add(TextBlock(line));
+          }
+          blocks.add(const FeedBlock(12));
+        } else if (item.kind == 'file' &&
+            item.bytes != null &&
+            item.name.toLowerCase().endsWith('.pdf')) {
+          await for (final page in PdfPageConverter.renderPages(
+            item.bytes!,
+            widthDots: widthDots,
+          )) {
+            blocks.add(ImageBlock(page));
+            blocks.add(const FeedBlock(12));
+          }
+        } else {
+          unsupported.add(item.name);
         }
-        blocks.add(const FeedBlock(12));
-      } else {
-        unsupported.add(item.name);
       }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _printing = false;
+        _ok = false;
+        _result = 'تعذر تجهيز الملف للطباعة: ${e.toString().replaceFirst('Exception: ', '')}';
+      });
+      return;
     }
 
     final PrintResult r;
@@ -100,10 +122,11 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
         subtitle: Text(_short(item.text!)),
       );
     }
+    final isPdf = item.name.toLowerCase().endsWith('.pdf');
     return ListTile(
       leading: const Icon(Icons.insert_drive_file_outlined),
       title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: const Text('صيغة الملف لم تُجهّز للتحويل بعد'),
+      subtitle: Text(isPdf ? 'ملف PDF — سيتم تحويل كل صفحة لصورة' : 'صيغة الملف لم تُجهّز للتحويل بعد'),
     );
   }
 
