@@ -6,12 +6,15 @@ import 'escpos_commands.dart';
 /// تحويل صورة ui.Image إلى أوامر Raster أحادية اللون (1-bit)
 class RasterEncoder {
   /// threshold: كلما زاد أصبحت الطباعة أغمق
-  /// chunkRows: عدد الصفوف في كل أمر لتفادي امتلاء ذاكرة الطابعة
+  /// chunkRows: عدد الصفوف في كل أمر؛ القيمة الصغيرة تقلل حجم مخزن الأمر
   static Future<Uint8List> encode(
     ui.Image image, {
     int threshold = 128,
-    int chunkRows = 96,
+    int chunkRows = 24,
   }) async {
+    if (chunkRows <= 0) {
+      throw ArgumentError.value(chunkRows, 'chunkRows', 'يجب أن يكون أكبر من صفر');
+    }
     final bd = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (bd == null) throw StateError('تعذر قراءة بيانات الصورة');
     final px = bd.buffer.asUint8List();
