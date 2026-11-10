@@ -105,7 +105,8 @@ class _InvoiceScreenState extends ConsumerState<InvoiceScreen> {
           const SizedBox(height: 12),
           if (templates.isNotEmpty)
             DropdownButtonFormField<TemplateModel>(
-              value: selected ?? templates.first,
+              key: ValueKey(selected?.id ?? templates.first.id),
+              initialValue: selected ?? templates.first,
               decoration: const InputDecoration(labelText: 'القالب'),
               items: templates.map((t) => DropdownMenuItem(value: t, child: Text(t.name))).toList(),
               onChanged: (v) => setState(() => _template = v),
