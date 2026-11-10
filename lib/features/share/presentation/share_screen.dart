@@ -7,8 +7,7 @@ import '../../printing/data/print_job_runner.dart';
 import '../../settings/presentation/settings_providers.dart';
 import 'share_listener.dart';
 
-/// شاشة الطباعة من المشاركة. إن فُعّلت "الطباعة المباشرة" في الإعدادات
-/// وكانت الطابعة متصلة، تبدأ الطباعة فور الفتح.
+/// شاشة معاينة وطباعة جميع العناصر المستلمة من تطبيق آخر.
 class ShareScreen extends ConsumerStatefulWidget {
   const ShareScreen({super.key, required this.payload});
   final SharedPayload payload;
@@ -32,12 +31,6 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
     });
   }
 
-  /// أسطر تبدأ بـ # تُهرَّب حتى لا تُفسَّر كأوامر قالب عند إعادة الطباعة
-  String _escape(String text) => text
-      .split('\n')
-      .map((l) => l.trimLeft().startsWith('#') ? '\\${l.trimLeft()}' : l)
-      .join('\n');
-
   String _short(String t) {
     final one = t.replaceAll('\n', ' ').trim();
     return one.length > 30 ? '${one.substring(0, 30)}…' : one;
@@ -49,41 +42,75 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
       _printing = true;
       _result = null;
     });
-    final runner = ref.read(printJobRunnerProvider);
-    final p = widget.payload;
-    final PrintResult r;
 
-    if (p.imageBytes != null) {
-      r = await runner.printBlocks(
-        [ImageBlock(p.imageBytes!), const FeedBlock(26)],
-        title: 'صورة مشتركة',
-        stored: '', // الصور لا تُحفظ، فلا تتوفر إعادة الطباعة
-      );
+    final blocks = <PrintBlock>[];
+    final unsupported = <String>[];
+    for (final item in widget.payload.items) {
+      if (item.isImage && item.bytes != null) {
+        blocks.add(ImageBlock(item.bytes!));
+        blocks.add(const FeedBlock(12));
+      } else if (item.kind == 'text' && item.text != null) {
+        for (final line in item.text!.split('\n')) {
+          blocks.add(TextBlock(line));
+        }
+        blocks.add(const FeedBlock(12));
+      } else {
+        unsupported.add(item.name);
+      }
+    }
+
+    final PrintResult r;
+    if (blocks.isEmpty) {
+      r = PrintResult.fail('لا توجد ملفات مدعومة للطباعة حالياً');
     } else {
-      final text = p.text ?? '';
-      final blocks = <PrintBlock>[
-        for (final l in text.split('\n')) TextBlock(l),
-        const FeedBlock(26),
-      ];
-      r = await runner.printBlocks(
-        blocks,
-        title: 'نص مشترك: ${_short(text)}',
-        stored: _escape(text),
-      );
+      r = await ref.read(printJobRunnerProvider).printBlocks(
+            blocks,
+            title: 'مشاركة: ${widget.payload.items.length} عنصر',
+            stored: '',
+          );
     }
 
     if (!mounted) return;
     setState(() {
       _printing = false;
       _ok = r.ok;
-      _result = r.ok ? 'تمت الطباعة' : 'فشلت الطباعة: ${r.error}';
+      final warning = unsupported.isEmpty
+          ? ''
+          : '\nلم تتم معالجة هذه الملفات بعد: ${unsupported.join('، ')}';
+      _result = (r.ok ? 'تم إرسال العناصر المدعومة للطباعة' : 'فشلت الطباعة: ${r.error}') + warning;
     });
+  }
+
+  Widget _preview(SharedItem item) {
+    if (item.isImage && item.bytes != null) {
+      return ListTile(
+        leading: SizedBox(
+          width: 52,
+          height: 52,
+          child: Image.memory(item.bytes!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.broken_image)),
+        ),
+        title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: const Text('صورة جاهزة للطباعة'),
+      );
+    }
+    if (item.kind == 'text' && item.text != null) {
+      return ListTile(
+        leading: const Icon(Icons.text_snippet_outlined),
+        title: Text(item.name),
+        subtitle: Text(_short(item.text!)),
+      );
+    }
+    return ListTile(
+      leading: const Icon(Icons.insert_drive_file_outlined),
+      title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: const Text('صيغة الملف لم تُجهّز للتحويل بعد'),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.payload;
     final conn = ref.watch(connectionControllerProvider);
+    final items = widget.payload.items;
 
     return Scaffold(
       appBar: AppBar(title: const Text('طباعة المحتوى المشترك')),
@@ -92,17 +119,15 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Text('العناصر المستلمة: ${items.length}', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
             Expanded(
               child: Card(
-                child: p.imageBytes != null
-                    ? Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: Image.memory(p.imageBytes!, fit: BoxFit.contain),
-                      )
-                    : SingleChildScrollView(
-                        padding: const EdgeInsets.all(16),
-                        child: SelectableText(p.text ?? '', style: const TextStyle(fontSize: 16)),
-                      ),
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) => _preview(items[i]),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -130,7 +155,7 @@ class _ShareScreenState extends ConsumerState<ShareScreen> {
               icon: _printing
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.print),
-              label: Text(_ok ? 'طباعة مرة أخرى' : 'طباعة'),
+              label: Text(_ok ? 'إعادة الطباعة' : 'طباعة العناصر المدعومة'),
             ),
             const SizedBox(height: 8),
             OutlinedButton(
