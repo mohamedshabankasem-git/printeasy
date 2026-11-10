@@ -7,10 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../../../core/printing/printer_transport.dart';
 
-/// اتصال Bluetooth LE.
-///
-/// طابعات الإيصالات BLE كثيراً ما يكون مخزن استقبالها صغيراً؛ لذلك نستخدم
-/// حزم GATT محافظة ومتتابعة بدلاً من إرسال كتل كبيرة بسرعة قد تُفقد منها بايتات.
+/// Bluetooth LE transport optimized for thermal-printer raster jobs.
 class BlePrinterTransport implements PrinterTransport {
   BlePrinterTransport(String remoteId)
       : _device = BluetoothDevice.fromId(remoteId);
@@ -19,6 +16,7 @@ class BlePrinterTransport implements PrinterTransport {
   BluetoothCharacteristic? _char;
   bool _noResponse = false;
   int _chunk = 20;
+  int _delayMs = 2;
   Future<void> _writeQueue = Future<void>.value();
 
   @override
@@ -29,11 +27,12 @@ class BlePrinterTransport implements PrinterTransport {
     await _device.connect(timeout: const Duration(seconds: 20));
 
     try {
+      var negotiatedMtu = 23;
       if (Platform.isAndroid) {
         try {
-          await _device.requestMtu(247);
+          negotiatedMtu = await _device.requestMtu(247);
         } catch (_) {
-          // بعض طابعات BLE لا تدعم تغيير MTU؛ نستخدم الحجم الآمن 20 بايت.
+          // Keep the BLE default MTU when the printer rejects MTU negotiation.
         }
       }
 
@@ -69,14 +68,15 @@ class BlePrinterTransport implements PrinterTransport {
       final selected = candidates.first.characteristic;
       _char = selected;
 
-      // عند توفر الخيارين نفضّل write-with-response لتأكيد استلام الحزمة
-      // وتقليل فقد البيانات. نستخدم no-response فقط إذا كان هو المدعوم وحده.
-      _noResponse = !selected.properties.write && 
-          selected.properties.writeWithoutResponse;
+      // Prefer no-response for high-volume raster data when supported.
+      // GATT packet size is bounded by the negotiated MTU minus its 3-byte header.
+      _noResponse = selected.properties.writeWithoutResponse;
+      final negotiatedPayload = math.max(20, negotiatedMtu - 3);
+      _chunk = math.min(180, negotiatedPayload);
 
-      // لا نفترض أن MTU الكبير يعني أن مخزن الطابعة كبير.
-      // 20 بايت هو الحجم الأكثر تحفظاً وتوافقاً مع طابعات BLE الحرارية.
-      _chunk = 20;
+      // A short pacing interval protects printer buffers without imposing
+      // the large delay previously applied to every 20-byte packet.
+      _delayMs = _noResponse ? 2 : 0;
     } catch (_) {
       _char = null;
       try {
@@ -96,27 +96,27 @@ class BlePrinterTransport implements PrinterTransport {
     final characteristic = characteristicUuid.toLowerCase();
     var score = 0;
 
-    // UUIDs شائعة في وحدات طابعات BLE الحرارية. هذه مجرد أولوية
-    // للاختيار وليست ادعاءً بأن كل الطابعات تستخدمها.
-    if (service.contains('18f0') || service.contains('ff00') ||
-        service.contains('ae00') || service.contains('49535343')) {
+    if (service.contains('18f0') ||
+        service.contains('ff00') ||
+        service.contains('ae00') ||
+        service.contains('49535343')) {
       score += 100;
     }
-    if (characteristic.contains('2af1') || characteristic.contains('ff02') ||
+    if (characteristic.contains('2af1') ||
+        characteristic.contains('ff02') ||
         characteristic.contains('ae01') ||
         characteristic.contains('49535343')) {
       score += 80;
     }
 
-    if (canWrite) score += 10;
-    if (canWriteNoResponse) score += 5;
+    if (canWriteNoResponse) score += 10;
+    if (canWrite) score += 5;
     return score;
   }
 
   @override
   Future<void> write(Uint8List data) {
     final next = _writeQueue.then((_) => _writeChunks(data));
-    // فشل إرسال سابق لا يمنع محاولة المهمة التالية بعد إعادة الاتصال.
     _writeQueue = next.then<void>(
       (_) {},
       onError: (Object error, StackTrace stack) {},
@@ -142,10 +142,8 @@ class BlePrinterTransport implements PrinterTransport {
         timeout: 15,
       );
 
-      // الكتابة دون استجابة لا توفر تأكيداً من GATT؛ نعطي الطابعة وقتاً
-      // لمعالجة كل حزمة قبل إرسال التالية لتقليل امتلاء مخزن الاستقبال.
-      if (_noResponse) {
-        await Future.delayed(const Duration(milliseconds: 12));
+      if (_delayMs > 0) {
+        await Future.delayed(Duration(milliseconds: _delayMs));
       }
     }
   }
