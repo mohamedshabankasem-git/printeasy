@@ -83,7 +83,19 @@ class PrintJobRunner {
     required bool log,
   }) async {
     PrintResult result;
-    final transport = _ref.read(connectionControllerProvider.notifier).transport;
+    final connection = _ref.read(connectionControllerProvider.notifier);
+    var transport = connection.transport;
+
+    // Match the expected paired-printer workflow: reconnect to the last
+    // selected printer automatically when the user starts a print job.
+    if (transport == null || !transport.isConnected) {
+      try {
+        final reconnected = await connection.reconnectLast();
+        if (reconnected) transport = connection.transport;
+      } catch (_) {
+        // The normal print error below reports that no connection is available.
+      }
+    }
 
     if (transport == null || !transport.isConnected) {
       result = const PrintResult.fail(kNoPrinterError);
