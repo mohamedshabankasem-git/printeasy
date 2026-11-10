@@ -65,7 +65,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<int>(
-            value: s.tailFeedMm,
+            key: ValueKey(s.tailFeedMm),
+            initialValue: s.tailFeedMm,
             decoration: const InputDecoration(labelText: 'التغذية بعد الإيصال'),
             items: const [0, 5, 10, 15, 20]
                 .map((v) => DropdownMenuItem(value: v, child: Text('$v مم')))
