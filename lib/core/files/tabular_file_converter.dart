@@ -16,7 +16,7 @@ class TabularFileConverter {
     required Uint8List bytes,
     required int widthDots,
   }) async {
-    if (bytes.isEmpty) throw ArgumentError('الملف فارغ');
+    if (bytes.isEmpty) throw const ArgumentError('الملف فارغ');
     final ext = fileName.toLowerCase().split('.').last;
     final pages = <Uint8List>[];
     if (ext == 'xlsx') {
