@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/painting.dart';
-
 /// يرسم صفحات نصية إلى صور حرارية بعرض محدد، مع دعم اتجاه العربية والتفاف السطور.
 class TextPageRenderer {
   TextPageRenderer._();
@@ -16,15 +14,6 @@ class TextPageRenderer {
   }) async {
     if (widthDots < 64) throw ArgumentError.value(widthDots, 'widthDots');
     final contentWidth = widthDots - horizontalPadding * 2;
-    final painterLines = <ui.Paragraph>[];
-    final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        textDirection: ui.TextDirection.rtl,
-        textAlign: ui.TextAlign.right,
-        fontSize: fontSize,
-        maxLines: 100,
-      ),
-    );
     // كل سطر يلف تلقائياً عند عرض الورق، وتُحفظ فواصل الأسطر.
     final chunks = <String>[];
     for (final line in lines) {
