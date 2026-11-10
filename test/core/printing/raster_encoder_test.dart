@@ -33,6 +33,11 @@ void main() {
 
   test('rejects a non-positive raster chunk height', () async {
     final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    canvas.drawRect(
+      const ui.Rect.fromLTWH(0, 0, 1, 1),
+      ui.Paint()..color = const ui.Color(0xFFFFFFFF),
+    );
     final picture = recorder.endRecording();
     final image = await picture.toImage(1, 1);
     picture.dispose();
