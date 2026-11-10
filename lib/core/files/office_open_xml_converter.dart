@@ -21,9 +21,9 @@ class OfficeOpenXmlConverter {
     final lines = <String>[];
 
     if (ext == 'docx') {
-      final document = archive.files.where((f) => f.isFile && f.name == 'word/document.xml').firstOrNull;
-      if (document == null) throw FormatException('ملف Word لا يحتوي على المستند الرئيسي');
-      final xml = utf8.decode(document.readBytes(), allowMalformed: true);
+      final documents = archive.files.where((f) => f.isFile && f.name == 'word/document.xml').toList();
+      if (documents.isEmpty) throw FormatException('ملف Word لا يحتوي على المستند الرئيسي');
+      final xml = utf8.decode(documents.first.readBytes(), allowMalformed: true);
       for (final paragraph in RegExp(r'<w:p(?:\s[^>]*)?>([\s\S]*?)</w:p>').allMatches(xml)) {
         final text = _extractRuns(paragraph.group(1) ?? '', 'w:t');
         if (text.trim().isNotEmpty) lines.add(text);
