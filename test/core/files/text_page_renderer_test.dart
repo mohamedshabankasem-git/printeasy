@@ -21,4 +21,19 @@ void main() {
       throwsArgumentError,
     );
   });
+
+  test('rejects invalid page height and text layout values', () async {
+    expect(
+      TextPageRenderer.render(const ['test'], widthDots: 384, maxHeight: 0),
+      throwsArgumentError,
+    );
+    expect(
+      TextPageRenderer.render(const ['test'], widthDots: 384, fontSize: -1),
+      throwsArgumentError,
+    );
+    expect(
+      TextPageRenderer.render(const ['test'], widthDots: 384, horizontalPadding: 192),
+      throwsArgumentError,
+    );
+  });
 }
