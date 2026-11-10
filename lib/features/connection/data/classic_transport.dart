@@ -22,7 +22,8 @@ class ClassicPrinterTransport implements PrinterTransport {
 
   @override
   Future<void> write(Uint8List data) async {
-    const chunk = 1024;
+    // حزم أصغر من السابقة لتقليل الضغط على مخزن الطابعة أثناء الصور الطويلة.
+    const chunk = 512;
     for (var i = 0; i < data.length; i += chunk) {
       final end = math.min(i + chunk, data.length);
       final ok = await PrintBluetoothThermal.writeBytes(data.sublist(i, end).toList());
@@ -30,7 +31,7 @@ class ClassicPrinterTransport implements PrinterTransport {
         _connected = false;
         throw Exception('انقطع الاتصال أثناء الإرسال');
       }
-      await Future.delayed(const Duration(milliseconds: 8));
+      await Future.delayed(const Duration(milliseconds: 10));
     }
   }
 
