@@ -68,7 +68,7 @@ class _ShareIntentListenerState extends State<ShareIntentListener> {
     for (final f in files) {
       final kind = f.type.name;
       final path = f.path;
-      final name = path.replaceAll('\\\\', '/').split('/').last;
+      final name = path.split('/').last;
       if (kind == 'text' || kind == 'url') {
         items.add(SharedItem(name: name.isEmpty ? 'نص مشترك' : name, kind: 'text', text: path));
         continue;
