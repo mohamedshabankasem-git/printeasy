@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../connection/presentation/connection_controller.dart';
 import '../../printing/data/print_job_runner.dart';
 import '../../templates/domain/default_templates.dart';
+import '../../share/presentation/share_listener.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -95,6 +96,7 @@ class HomeScreen extends ConsumerWidget {
               tile(Icons.receipt_long, 'فاتورة سريعة', () => context.push('/invoice')),
               tile(Icons.description_outlined, 'القوالب', () => context.push('/templates')),
               tile(Icons.table_chart_outlined, 'طباعة جماعية', () => context.push('/batch')),
+              tile(Icons.folder_open_outlined, 'طباعة ملفات', () => context.push('/share', extra: const SharedPayload(items: []))),
               tile(Icons.history, 'السجل', () => context.push('/history')),
               tile(Icons.settings_outlined, 'الإعدادات', () => context.push('/settings')),
             ],
