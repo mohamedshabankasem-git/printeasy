@@ -5,14 +5,37 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
-/// محتوى مُشارَك من تطبيق آخر: نص أو صورة
-class SharedPayload {
-  const SharedPayload({this.text, this.imageBytes});
+/// عنصر واحد وصل من قائمة المشاركة.
+class SharedItem {
+  const SharedItem({
+    required this.name,
+    required this.kind,
+    this.bytes,
+    this.text,
+  });
+
+  final String name;
+  final String kind; // image, text, file, other
+  final Uint8List? bytes;
   final String? text;
-  final Uint8List? imageBytes;
+
+  bool get isImage {
+    final n = name.toLowerCase();
+    return kind == 'image' ||
+        n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.png') ||
+        n.endsWith('.webp');
+  }
 }
 
-/// يستمع لعمليات المشاركة (واتساب، المعرض...) ويفتح شاشة /share
+/// محتوى المشاركة، مع الاحتفاظ بكل العناصر بدلاً من إسقاط الملفات الإضافية.
+class SharedPayload {
+  const SharedPayload({required this.items});
+  final List<SharedItem> items;
+}
+
+/// يستمع لعمليات المشاركة ويفتح شاشة المعاينة والطباعة.
 class ShareIntentListener extends StatefulWidget {
   const ShareIntentListener({super.key, required this.router, required this.child});
   final GoRouter router;
@@ -30,9 +53,7 @@ class _ShareIntentListenerState extends State<ShareIntentListener> {
     super.initState();
     if (!(Platform.isAndroid || Platform.isIOS)) return;
     try {
-      // التطبيق مفتوح أصلاً
       _sub = ReceiveSharingIntent.instance.getMediaStream().listen(_handle, onError: (_) {});
-      // التطبيق فُتح عن طريق المشاركة
       ReceiveSharingIntent.instance.getInitialMedia().then((files) {
         _handle(files);
         ReceiveSharingIntent.instance.reset();
@@ -42,22 +63,30 @@ class _ShareIntentListenerState extends State<ShareIntentListener> {
 
   Future<void> _handle(List<SharedMediaFile> files) async {
     if (files.isEmpty) return;
-    String? text;
-    Uint8List? image;
+    final items = <SharedItem>[];
 
     for (final f in files) {
-      final kind = f.type.name; // image / text / url / video / file
+      final kind = f.type.name;
+      final path = f.path;
+      final name = path.split(RegExp(r'[/\\\\]')).last;
       if (kind == 'text' || kind == 'url') {
-        text ??= f.path; // في النص، path يحمل المحتوى نفسه
-      } else if (kind == 'image' && image == null) {
+        items.add(SharedItem(name: name.isEmpty ? 'نص مشترك' : name, kind: 'text', text: path));
+        continue;
+      }
+      if (kind == 'image' || kind == 'file') {
         try {
-          image = await File(f.path).readAsBytes();
-        } catch (_) {}
+          final bytes = await File(path).readAsBytes();
+          items.add(SharedItem(name: name, kind: kind, bytes: bytes));
+        } catch (_) {
+          items.add(SharedItem(name: name, kind: 'other'));
+        }
+      } else {
+        items.add(SharedItem(name: name, kind: 'other'));
       }
     }
-    if (text == null && image == null) return;
 
-    final payload = SharedPayload(text: text, imageBytes: image);
+    if (items.isEmpty) return;
+    final payload = SharedPayload(items: List.unmodifiable(items));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.router.push('/share', extra: payload);
     });
